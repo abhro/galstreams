@@ -1,0 +1,9 @@
+site_name: Galstreams
+
+theme:
+  name: readthedocs
+
+plugins:
+  - search
+  - mkdocstrings
+  - autorefs

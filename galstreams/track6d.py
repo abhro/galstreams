@@ -11,67 +11,75 @@ class Track6D:
     def __init__(self, track_name, track_file, summary_file, stream_name=None, stream_shortname=None, track_reference=' ',
                   track_discovery_references=' ', verbose=True):
 
-        ''' Track6D: A Stellar Stream's Track realization in 6D. See the list of attributes below.
+        '''
+        Track6D: A Stellar Stream's Track realization in 6D. See the list of attributes below.
 
-          Parameters
-          ==========
+        Parameters
+        ==========
 
-          track_name : str
+        - `track_name` : str
+
             Unique identifier for the stream's track realization. Not necesarily identical to stream_name, e.g. if
             more than one track for the same stream is available
 
-          track_file : str
+        - `track_file` : str
+
             Input ecsv file containing knots to initialize 6D track stream realization
 
-          summary_file : str
+        - `summary_file` : str
+
             Input ecsv file containing end point, mid point and pole coordinates (6D, 6D and 3D)
 
-          Attributes:
-          ===========
+        Attributes:
+        ===========
 
-          track_name : str
+        - `track_name` : str
+
             Unique identifier for the stream's track realization
 
-          stream_name: str
+        - `stream_name`: str
+
             Stream name
 
-          stream_shortname: str
+        - `stream_shortname`: str
+
             Stream short name
 
-          stream_frame: astropy coordinate frame
+        - `stream_frame`: astropy coordinate frame
 
-          track : astropy.coordinates.SkyCoord Object
+        - `track` : astropy.coordinates.SkyCoord Object
+
             Contains the track 6D info. By default initialized in icrs frame
 
-          length: astropy.Quantity Object contains the angular length measured along the track
+        - `length`: astropy.Quantity Object contains the angular length measured along the track
 
-          InfoFlags: string - 4-bits indicate available (or assumed) data.
-              bit 0: 0 = great circle by construction
-              bit 1: 0 = no distance track available (only mean or central value reported)
-              bit 2: 0 = no proper motion data available (only mean or central value reported)
-              bit 3: 0 = no radial velocity data available (only mean or central value reported)
+        - `InfoFlags`: string - 4-bits indicate available (or assumed) data.
 
-          end_points: 2-element astropy.coordinates.SkyCoord Object with end point coordinates
+            + bit 0: 0 = great circle by construction
+            + bit 1: 0 = no distance track available (only mean or central value reported)
+            + bit 2: 0 = no proper motion data available (only mean or central value reported)
+            + bit 3: 0 = no radial velocity data available (only mean or central value reported)
 
-          mid_point: astropy.coordinates.SkyCoord Object with stream's mid-point coordinates (phi1=0)
+        - `end_points`: 2-element astropy.coordinates.SkyCoord Object with end point coordinates
 
-          mid_pole: astropy.coordinates.SkyCoord Object heliocentric pole at mid_point
+        - `mid_point`: astropy.coordinates.SkyCoord Object with stream's mid-point coordinates (phi1=0)
 
-          poly_sc: astropy.coordinates.SkyCoord Object containing vertices for stream's polygon footprint
+        - `mid_pole`: astropy.coordinates.SkyCoord Object heliocentric pole at mid_point
 
-          mid_pole_gsr: astropy.coordinates.SkyCoord Object. GSR pole at phi1=0
+        - `poly_sc`: astropy.coordinates.SkyCoord Object containing vertices for stream's polygon footprint
 
-          pole_track_helio: astropy.coordinates.SkyCoord Object heliocentric pole track (galactic coordinates by default)
+        - `mid_pole_gsr`: astropy.coordinates.SkyCoord Object. GSR pole at phi1=0
 
-          pole_track_gsr: astropy.coordinates.SkyCoord Object GSR pole track (galactic coordinates by default)
+        - `pole_track_helio`: astropy.coordinates.SkyCoord Object heliocentric pole track (galactic coordinates by default)
 
-          angular_momentum_helio: list object with spherical components (modulus, lat, lon) for the angular momentum of
-                                  each point along the track, computed in a heliocentric frame at rest w.r.t. the GSR
+        - `pole_track_gsr`: astropy.coordinates.SkyCoord Object GSR pole track (galactic coordinates by default)
 
-          WARNING: angular momentum and pole tracks have length track.size-1
+        - `angular_momentum_helio`: list object with spherical components (modulus, lat, lon)
+            for the angular momentum of each point along the track, computed in
+            a heliocentric frame at rest w.r.t. the GSR
 
-          '''
-
+        WARNING: angular momentum and pole tracks have length track.size-1
+        '''
 
         #Initialize a (new) Footprint6D object
 
@@ -167,11 +175,13 @@ class Track6D:
 
 
     def get_helio_angular_momentum_track(self, return_cartesian = False ):
+        '''
+        Compute angular momentum for each point in the track.
 
-        '''Compute angular momentum for each point in the track.
-
-           By default it returns the spherical components of the angular momentum in the heliocentric and galactocentric reference
-           frames at rest w.r.t. the GSR. If return_cartesian = True it will return cartesian components
+        By default it returns the spherical components of the angular
+        momentum in the heliocentric and galactocentric reference
+        frames at rest with respect to the GSR. If `return_cartesian = True`
+        it will return Cartesian components.
         '''
 
         st_s = self.track.galactic
@@ -195,13 +205,15 @@ class Track6D:
 
         if return_cartesian: return L
         else:
-            return (L[0], L[1].to(u.deg), L[2].to(u.deg) )  #Force lat,lon to be in deg because leaving them in rad is asking for trouble
+            return (L[0], L[1].to(u.deg), L[2].to(u.deg) ) #Force lat,lon to be in deg because leaving them in rad is asking for trouble
 
 
     def get_pole_tracks(self, use_gsr_default=True):
-
-        ''' Compute pole at each point in the track. This is obtained by computing, at each point, the normal or cross product betwee
-            said point and the contiguous point in the track '''
+        '''
+        Compute pole at each point in the track. This is obtained by computing,
+        at each point, the normal or cross product between said point and the
+        contiguous point in the track
+        '''
 
         if use_gsr_default: _ = ac.galactocentric_frame_defaults.set('latest')
 
@@ -263,18 +275,18 @@ class Track6D:
         return get_adql_query_from_polygon(self.poly_sc)
 
     def get_mask_in_poly_footprint(self,coo):
+        '''
+        Return a mask for  points in input SkyCoords object that are inside polygon footprint.
 
-        ''' Return a mask for  points in input SkyCoords object that are inside polygon footprint.
+        Parameters
+        ==========
 
-            Parameters
-            ==========
+        - `coo` : astropy.coordinates.SkyCoord object
 
-            coo : astropy.coordinates.SkyCoord object
+        Returns
+        =======
 
-            Returns
-            =======
-
-            mask : boolean mask array, same number of elements as coo
+        - `mask` : boolean mask array, same number of elements as coo
         '''
 
         return get_mask_in_poly_footprint(poly_sc=self.poly_sc, coo=coo, stream_frame=self.stream_frame)
@@ -289,25 +301,25 @@ class Track6D:
 def create_sky_polygon_footprint_from_track(SkyCoordTrack, frame, width=1.*u.deg, phi2_offset=0.*u.deg):
 
     '''
-      Create the Polygon Footprint from the celestial track. The polygon is created by shifting the track in phi2 by a given width.
+    Create the Polygon Footprint from the celestial track.
+    The polygon is created by shifting the track in phi2 by a given width.
 
-      Inputs:
-      =======
+    Inputs:
+    =======
 
-      SkyCoordTrack: track SkyCoord object from a MWStreams library stream (mws[st].track)
+    - `SkyCoordTrack`: track SkyCoord object from a MWStreams library stream (`mws[st].track`)
 
-      frame: None. Astropy coordinate frame to set up the polygon by offsetting the track by a given width.
-             The default is to use the Track6D's own stream frame Track6D.stream_frame
+    - `frame`: None. Astropy coordinate frame to set up the polygon by offsetting the track by a given width.
+           The default is to use the Track6D's own stream frame Track6D.stream_frame
 
-      Parameters
-      ==========
+    Parameters
+    ==========
 
-      phi2_offset: astropy.Quantity object
-       The offset in phi2 that will be applied to the track to create the polygon footprint (default 0)
+    - `phi2_offset`: astropy.Quantity object
+      The offset in phi2 that will be applied to the track to create the polygon footprint (default 0)
 
-      width: astropy.Quantity object
-       The total width of the polygon footprint to be created around track+phi2_offset
-
+    - `width`: astropy.Quantity object
+      The total width of the polygon footprint to be created around track+phi2_offset
     '''
 
     track = SkyCoordTrack
@@ -333,23 +345,26 @@ def create_sky_polygon_footprint_from_track(SkyCoordTrack, frame, width=1.*u.deg
 
 def compute_angular_momentum_track(track, return_cartesian = False):
 
-    '''  Compute angular momentum for each point in the track.
-         By default it returns the spherical components of the angular momentum in the heliocentric and galactocentric reference
-         frames at rest w.r.t. the GSR. Set return_cartesian = True to get cartesian components
+    '''
+    Compute angular momentum for each point in the track.
+    By default it returns the spherical components of the angular momentum in
+    the heliocentric and galactocentric reference frames at rest with respect to
+    the GSR. Set `return_cartesian = True` to get cartesian components
 
 
-         Parameters:
-         =======
+    Parameters:
+    =======
 
-         track : SkyCoord object
+    - `track` : SkyCoord object
 
-         return_cartesian : If True returns cartesian coordinates. If False, returns spherical coords (astropy format mod, lat, lon)
+    - `return_cartesian` : If True returns cartesian coordinates. If False,
+                           returns spherical coords (astropy format mod, lat, lon)
 
-         Returns:
-         ========
+    Returns:
+    ========
 
-         L : list object with compoments of angular momentum vector. By default returns spherical components modulus, lat, lon
-
+    - `L` : list object with compoments of angular momentum vector. By default
+            returns spherical components modulus, lat, lon
     '''
 
     tr = track.cartesian

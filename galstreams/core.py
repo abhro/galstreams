@@ -8,7 +8,7 @@ import astropy.table
 import astropy.coordinates as ac
 import astropy.units as u
 
-from .track6d import Track6D
+from .track6d import Track6D, compute_angular_momentum_track, create_sky_polygon_footprint_from_track
 from .mwstreams import MWStreams
 
 
@@ -154,13 +154,13 @@ def get_mask_in_poly_footprint(poly_sc, coo, stream_frame):
         Parameters
         ==========
 
-        poly_sc : astropy.coordinates.SkyCoord object with polygon vertices
-        coo : astropy.coordinates.SkyCoord object
+        - `poly_sc` : astropy.coordinates.SkyCoord object with polygon vertices
+        - `coo` : astropy.coordinates.SkyCoord object
 
         Returns
         =======
 
-        mask : boolean mask array, same number of elements as coo
+        `mask` : boolean mask array, same number of elements as coo
     '''
 
     #Create poly-path object
@@ -192,9 +192,12 @@ def plot_globular_clusters(ax,plot_colorbar=False,scat_kwargs=None,galactic=True
         for key in scat_kwargs.keys(): scatter_kwargs[key]=scat_kwargs[key]
 
     #Plot globular cluster layer
-    if galactic: cc=ax.scatter(gc_l,gc_b,c=gc_Rhel,**scatter_kwargs)
-    else: cc=ax.scatter(gc_RA,gc_DEC,c=gc_Rhel,**scatter_kwargs)
+    if galactic:
+        cc=ax.scatter(gc_l,gc_b,c=gc_Rhel,**scatter_kwargs)
+    else:
+        cc=ax.scatter(gc_RA,gc_DEC,c=gc_Rhel,**scatter_kwargs)
 
-    if plot_colorbar: plt.colorbar(cc,ax=ax)
+    if plot_colorbar:
+        plt.colorbar(cc,ax=ax)
 
 #----------------

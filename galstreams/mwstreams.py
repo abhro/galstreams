@@ -6,6 +6,9 @@ import astropy.units as u
 
 from .track6d import Track6D
 
+SUMMARY_FILE_TEMPLATE = "{tdir}/track.{imp}.{stname}.{tref}.summary.ecsv"
+TRACK_FILE_TEMPLATE   = "{tdir}/track.{imp}.{stname}.{tref}.ecsv"
+
 #---------MW Streams class--------------------------------------------------------------------------------
 class MWStreams(dict):
 
@@ -51,12 +54,11 @@ class MWStreams(dict):
         for ii in np.arange(lmaster.TrackRefs.size):
 
             #Create the names of the files containing the knots and summary attributes to initialize each stream
-            summary_file = "{tdir}/track.{imp}.{stname}.{tref}.summary.ecsv".format(tdir=tdir+'/tracks', imp=lmaster.Imp[ii],
-                                                                                   stname=lmaster.Name[ii],
-                                                                                   tref=lmaster.TrackRefs[ii])
-            track_file   = "{tdir}/track.{imp}.{stname}.{tref}.ecsv".format(tdir=tdir+'/tracks', imp=lmaster.Imp[ii],
-                                                                           stname=lmaster.Name[ii],
-                                                                           tref=lmaster.TrackRefs[ii])
+            format_params = dict(tdir=tdir+'/tracks', imp=lmaster.Imp[ii],
+                                 stname=lmaster.Name[ii],
+                                 tref=lmaster.TrackRefs[ii])
+            summary_file = SUMMARY_FILE_TEMPLATE.format(**format_params)
+            track_file = TRACK_FILE_TEMPLATE.format(**format_params)
 
             if verbose:
                 print(f"Initializing Track6D {lmaster.TrackName[ii]} for {lmaster.Name[ii]}...")
@@ -79,11 +81,16 @@ class MWStreams(dict):
                 elif verbose: print(f"Skipping Off track {lmaster.TrackName[ii]}...")
 
             #Store summary attributes
-            for k in attributes: end_o_dic[k] = np.append(end_o_dic[k], getattr(track.end_points, k)[0] )
-            for k in attributes: end_f_dic[k] = np.append(end_f_dic[k], getattr(track.end_points, k)[1] )
-            for k in attributes: mid_point_dic[k] = np.append(mid_point_dic[k], getattr(track.mid_point, k) )
-            for k in attributes[:2]: mid_pole_dic[k]  = np.append(mid_pole_dic[k] , getattr(track.mid_pole, k) )
-            for k in track_widths.keys(): track_widths[k] = np.append(track_widths[k], track.track_width['width_'+k].value)
+            for k in attributes:
+                end_o_dic[k] = np.append(end_o_dic[k], getattr(track.end_points, k)[0] )
+            for k in attributes:
+                end_f_dic[k] = np.append(end_f_dic[k], getattr(track.end_points, k)[1] )
+            for k in attributes:
+                mid_point_dic[k] = np.append(mid_point_dic[k], getattr(track.mid_point, k) )
+            for k in attributes[:2]:
+                mid_pole_dic[k]  = np.append(mid_pole_dic[k] , getattr(track.mid_pole, k) )
+            for k in track_widths.keys():
+                track_widths[k] = np.append(track_widths[k], track.track_width['width_'+k].value)
 
 
             info_flags.append(track.InfoFlags)
@@ -150,59 +157,61 @@ class MWStreams(dict):
 
 
     def all_unique_stream_names(self):
-        '''
-          Returns all unique instances of the StreamNames in the library (a stream can have multiple tracks)
+        """
+        Returns all unique instances of the StreamNames in the library (a stream can have multiple tracks)
 
-          Returns
-          =======
+        Returns
+        =======
 
-          array
-        '''
+        array
+        """
         return np.unique(self.summary.Name[self.summary.On])
 
     def all_track_names(self, On_only=False):
-        '''
-          Returns TrackNames available in the library (when On_only=False, equivalent to MWStreams.summary['TrackName'])
+        """
+        Returns TrackNames available in the library (when `On_only=False`,
+        equivalent to `MWStreams.summary['TrackName']`)
 
-          Parameters:
-          ===========
+        Parameters:
+        ===========
 
-          On_only: True/False
-                   If True it returns only the names for the active tracks
+        - `On_only`: True/False
+                 If True it returns only the names for the active tracks
 
-          Returns
-          =======
+        Returns
+        =======
 
-          array
-        '''
+        array
+        """
 
         if On_only: return self.keys()
         else:
             return np.array(self.summary.index)
 
     def get_track_names_for_stream(self, StreamName, On_only=False):
-        '''
-            Find all the TrackNames for which the StreamName matches the input string (all or part of it)
+        """
+        Find all the TrackNames for which the StreamName matches the input string (all or part of it)
 
-            Parameters
-            ==========
+        Parameters
+        ==========
 
-            StreamName : str
-                         Name of the stream for which to search TrackNames (or part of it)
-            On : book
-                 If True, returns only the active track name(s)
+        - `StreamName` : str
+                     Name of the stream for which to search TrackNames (or part of it)
+        - `On` : book
+             If True, returns only the active track name(s)
 
-            Returns
-            =======
+        Returns
+        =======
 
-            array : contains all the TrackNames for which the stream's name matches the input string
-
-        '''
+        array : contains all the TrackNames for which the stream's name matches the input string
+        """
 
         all_track_names = []
 
-        if On_only: track_names = self.keys()
-        else: track_names = self.summary.index
+        if On_only:
+            track_names = self.keys()
+        else:
+            track_names = self.summary.index
 
         for tn in track_names:
             if StreamName in self.summary.loc[tn,'Name']:
@@ -245,23 +254,25 @@ class MWStreams(dict):
         self.summary.to_csv(f'{output_root}.summary.csv')
 
     def get_track_names_in_sky_window(self, lon_range, lat_range, frame, On_only=True, wrap_angle=0.*u.deg):
-        '''
-           Get a list of track names for streams in a sky window with limits given by
-           lon_range,lat_range in a given coordinate frame
+        """
+        Get a list of track names for streams in a sky window with limits given by
+        lon_range,lat_range in a given coordinate frame
 
-           Parameters
-           ==========
+        Parameters
+        ==========
 
-           lon_range : np.array or list
-                       2-element array containing limits of sky window in "longitude" coordinate (e.g ra, l)
+        - `lon_range` : np.array or list
 
-           lat_range : np.array or list
-                       2-element array containing limits of sky window in "latitude" coordinate (e.g dec, b)
+            2-element array containing limits of sky window in "longitude" coordinate (e.g ra, l)
 
-           frame : AstroPy coordinate frame
-                   Coordinate frame corresponding to lon/lat_range coordinates provided above
+        - `lat_range` : np.array or list
 
-        '''
+            2-element array containing limits of sky window in "latitude" coordinate (e.g dec, b)
+
+        - `frame` : AstroPy coordinate frame
+
+            Coordinate frame corresponding to lon/lat_range coordinates provided above
+        """
 
         #This is just so I can get the representation_component_names (don't know how to do it
         #without creating a frame instance, so, there, let's move on
@@ -306,83 +317,95 @@ class MWStreams(dict):
                                 exclude_streams=[], include_only=[], plot_On_only=False,
                                 return_basemap_m = False,
                                 verbose=False):
-        '''
+        """
+        Plot a Mollweide sky projection map of the current MWStreams library
+        object in the selected coordinate frame.
+        Note: requires Basemap library
 
-          Plot a Mollweide sky projection map of the current MWStreams library object in the selected coordinate frame.
-          Note: requires Basemap library
+        Parameters
+        ==========
 
-          Parameters
-          ==========
+        - `track` : SkyCoord object
 
-                  track : SkyCoord object
+        - `ax=None`
 
+        - `frame` : Astropy astropy.coordinates.baseframe instance
 
-              ax=None
+            Coordinate frame to be used in sky plot
 
-              frame : Astropy astropy.coordinates.baseframe instance
-                      Coordinate frame to be used in sky plot
+        - `C_attribute` : name of SkyCoord object attribute (in selected reference frame)
+                      to pass `plt.scatter` as auxiliary column c
+                      e.g. `'distance'`, `'pm_b'` if `frame=ac.Galactic`
 
-              C_attribute : name of SkyCoord object attribute (in selected reference frame)
-                            to pass plt.scatter as auxiliary column c
-                            e.g. 'distance', 'pm_b' if frame=ac.Galactic
+        - `plot_names` : str ['ID','track_name','stream_name','stream_shortname']
 
-              plot_names : str ['ID','track_name','stream_name','stream_shortname']
+        - `plot_colorbar`: Bool
 
-              plot_colorbar: Bool
-                             If C_attribute is passed, plot_colorbar=True by default
+            If C_attribute is passed, plot_colorbar=True by default
 
-              invert_axis : Bool
-                            Invert longitude axis, set to True by default to follow usual plotting convention for l/ra
+        - `invert_axis` : Bool
 
-              show_legend: Bool
-                           Show legend at the bottom of the plot. Legend attributes can be passed via the legend_kwds dict
+            Invert longitude axis, set to True by default to follow usual plotting convention for l/ra
 
-              basemap_kwds : dict
-                             Keywords to instantiate Basemap projection. Default, Molweide projection
+        - `show_legend`: Bool
 
-              mlabels_kwds: dict  - default=dict(meridians=np.arange(0.,360.,30.), color=(0.65,0.65,0.65),linewidth=1., laxmax=90.)
-                            Meridian labelling keyword attributes to be passed to Basemap
+            Show legend at the bottom of the plot. Legend attributes can be passed via the legend_kwds dict
 
-              plabels_kwds: dict - default=dict(circles=np.arange(-75,75,15.), color=(0.65,0.65,0.65),linewidth=1.,
-                               labels=[0,1,1,0], labelstyle='+/-' )
-                            Parallel labelling keyword attributes to be passed to Basemap
+        - `basemap_kwds` : dict
 
-              scat_kwds : dict - default scat_kwds=dict(marker='.', s=30, alpha=0.8) [defaults change if C_attribute is passed]
-                          Plotting keyword attributes to be passed to plt.scatter
+            Keywords to instantiate Basemap projection. Default, Molweide projection
 
-              annot_kwds : dict
-                           Text and arrow attributes to be passed to annotate
+        - `mlabels_kwds`: dict  - default: `dict(meridians=np.arange(0.,360.,30.), color=(0.65,0.65,0.65),linewidth=1., laxmax=90.)`
 
-              legend_kwds : dict
-                            Legend attributes to be passed to plt.legend
+            Meridian labelling keyword attributes to be passed to Basemap
 
-              cb_kwds : dict - default = dict(label=C_attribute,  shrink=0.5)
-                        Colorbar attributes to be passed to plt.colorbar
+        - `plabels_kwds`: dict - `default=dict(circles=np.arange(-75,75,15.), color=(0.65,0.65,0.65),linewidth=1.,
+                         labels=[0,1,1,0], labelstyle='+/-' )`
 
-              exclude_streams: list of stream TrackNames
-                               TrackNames for streams *not* to be included in the plot
+            Parallel labelling keyword attributes to be passed to Basemap
 
-              include_only: list of stream TrackNames
-                            Only the TrackNames provided in this list will be plotted
+        - `scat_kwds` : dict - default scat_kwds=dict(marker='.', s=30, alpha=0.8) [defaults change if C_attribute is passed]
 
-              plot_On_only: False
-                            Plot only a single (default) track for each stream (i.e. On attribute == True). The default is to plot
-                            everything in the current library object
+            Plotting keyword attributes to be passed to plt.scatter
 
-              return_basemap_m : False
-                                 Return Basemap projection function
+        - `annot_kwds` : dict
 
-              verbose: False
-                       Not doing anything right now if set to True
+            Text and arrow attributes to be passed to annotate
 
-          Returns
-          =======
+        - `legend_kwds` : dict
 
-             ax
+            Legend attributes to be passed to plt.legend
 
-             ax : Current axes object
+        - `cb_kwds` : dict - default = `dict(label=C_attribute,  shrink=0.5)`
 
-        '''
+            Colorbar attributes to be passed to plt.colorbar
+
+        - `exclude_streams`: list of stream TrackNames
+
+            TrackNames for streams *not* to be included in the plot
+
+        - `include_only`: list of stream TrackNames
+
+            Only the TrackNames provided in this list will be plotted
+
+        - `plot_On_only`: False
+
+            Plot only a single (default) track for each stream (i.e. On `attribute == True`).
+            The default is to plot everything in the current library object
+
+        - `return_basemap_m` : False
+
+            Return Basemap projection function
+
+        - `verbose`: False
+
+            Not doing anything right now if set to True
+
+        Returns
+        =======
+
+        `ax` : Current axes object
+        """
 
         if ax is None:
             fig = plt.figure(1,figsize=(17,12))
@@ -400,7 +423,8 @@ class MWStreams(dict):
 
         fr = frame
 
-        if len(include_only)>0 : keys_to_plot = include_only
+        if len(include_only) > 0:
+            keys_to_plot = include_only
         else:
             if plot_On_only:
                 keys_to_plot = self.summary["TrackName"][self.summary.loc[:,"On"]]
@@ -412,7 +436,8 @@ class MWStreams(dict):
 
         for st in keys_to_plot:
 
-            if st in exclude_streams: continue
+            if st in exclude_streams:
+                continue
 
             #short way to ensure if plot_On_only=True plots everything, if False only On tracks are plotted
 
@@ -448,9 +473,14 @@ class MWStreams(dict):
                 except AttributeError:
                     c = None
                     if msg_flag==0:
-                        print('WARNING: Invalid attribute selected. If not a spelling error, you are probably trying to plot an attribute in a different coord frame as the one selected. This is currently not supported. Plotting without C_attribute aux column for now...')
+                        print('WARNING: Invalid attribute selected. If not a spelling error, '
+                              'you are probably trying to plot an attribute in a different '
+                              'coordinate frame as the one selected. '
+                              'This is currently not supported. '
+                              'Plotting without C_attribute aux column for now...')
                     msg_flag = 1
-            else: c = None
+            else:
+                c = None
 
             im = ax.scatter(x,y, c=c,  **scat_kwds, label=label)
 

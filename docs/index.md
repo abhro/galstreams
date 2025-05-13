@@ -1,6 +1,6 @@
 # **galstreams**
 
-![see plot here](notebooks/fig_all_streams_lib.png?raw=true "galstreams 06-2024")
+![see plot here](fig_all_streams_lib.png "galstreams 06-2024")
 
 ## Description
 
@@ -46,4 +46,4 @@ folder and run:
 ----------
 # Quick Guide
 
-For a detailed walk through the library please see the example Python notebooks provided [here](notebooks/).
+For a detailed walk through the library please see the example Python notebooks in the main repository.

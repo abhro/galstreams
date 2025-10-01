@@ -10,6 +10,7 @@ import astropy.units as u
 import gala
 import gala.coordinates as gc
 import gala.dynamics as gd
+from packaging import version
 
 
 #---------------------------------
@@ -860,7 +861,7 @@ class Track6D:
 
 
       #Set up stream's coordinate frame
-      if np.float64(gala.__version__[:3])<=1.4:
+      if version.parse(gala.__version__)<=version.parse("1.4"):
          self.stream_frame = gc.GreatCircleICRSFrame(pole=self.mid_pole, ra0=self.mid_point.icrs.ra)  
       else:  
          self.stream_frame = gc.GreatCircleICRSFrame.from_pole_ra0(

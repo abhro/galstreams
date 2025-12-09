@@ -179,7 +179,7 @@ def get_mask_in_poly_footprint(poly_sc, coo, stream_frame):
 
     return all_track_names
 
-  def print_topcat_friendly_compilation(self, output_root='galtreams.unique_streams'):
+def print_topcat_friendly_compilation(self, output_root='galtreams.unique_streams'):
         import pandas as pd
         modes = ['track','end_point','mid_point']
 
@@ -213,7 +213,7 @@ def get_mask_in_poly_footprint(poly_sc, coo, stream_frame):
         print(f" {output_root}.summary.csv")
         self.summary.to_csv(f'{output_root}.summary.csv')
 
-  def get_track_names_in_sky_window(self, lon_range, lat_range, frame, On_only=True, wrap_angle=0.*u.deg):
+def get_track_names_in_sky_window(self, lon_range, lat_range, frame, On_only=True, wrap_angle=0.*u.deg):
     '''
        Get a list of track names for streams in a sky window with limits given by
        lon_range,lat_range in a given coordinate frame
@@ -258,7 +258,7 @@ def get_mask_in_poly_footprint(poly_sc, coo, stream_frame):
 
     return track_names
 
-  def plot_stream_compilation(self, ax=None, frame=ac.ICRS, C_attribute=None, plot_names='ID',
+def plot_stream_compilation(self, ax=None, frame=ac.ICRS, C_attribute=None, plot_names='ID',
                               plot_colorbar = None, invert_axis=True, show_legend=True,
                               basemap_kwds = dict(projection='moll',lon_0=180., resolution='l'),
                               mlabels_kwds = dict(meridians=np.arange(0.,360.,30.), color=(0.65,0.65,0.65),linewidth=1., laxmax=90.),

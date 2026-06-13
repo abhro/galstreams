@@ -8,8 +8,25 @@ import astropy.table
 import astropy.coordinates as ac
 import astropy.units as u
 import gala
+##Yes, I know this is not particularly pretty, but its legible for me.
+#try:
+# import gala
+# HAS_GALA = True
+#except ImportError:
+#    HAS_GALA = False
+#if not HAS_GALA:
+#    raise ImportError(
+#            "\n"
+#            "galstreams dynamics requires the 'gala' package.\n\n"
+#            "To fix this, install it with:\n\n"
+#            "    pip install galstreams[dyn]\n\n"
+#            "or install directly:\n\n"
+#            "    pip install gala\n\n"
+#            "If you are using conda, prefer:\n\n"
+#            "    conda install -c conda-forge gala\n"
+#    )
 import gala.coordinates as gc
-import gala.dynamics as gd
+#import gala.dynamics as gd
 from packaging import version
 
 from .track6d import Track6D, compute_angular_momentum_track, create_sky_polygon_footprint_from_track
@@ -153,7 +170,258 @@ def plot_5D_tracks_subplots_row(coo , frame, axs=None, name=None, plot_flag='111
 
 def get_mask_in_poly_footprint(poly_sc, coo, stream_frame):
 
-    ''' Test whether points in input SkyCoords object are inside polygon footprint.
+     ''' Test whether points in input SkyCoords object are inside polygon footprint. 
+
+         Parameters
+         ==========
+
+         poly_sc : astropy.coordinates.SkyCoord object with polygon vertices 
+         coo : astropy.coordinates.SkyCoord object
+
+         Returns
+         =======
+
+         mask : boolean mask array, same number of elements as coo 
+     '''
+
+     #Create poly-path object
+     verts = np.array([poly_sc.transform_to(stream_frame).phi1, poly_sc.transform_to(stream_frame).phi2]).T
+     poly = mpl.path.Path(verts)
+
+     #The polygon test has to be done in phi1/phi2 (otherwise there's no guarantee of continuity for the polygon)
+     coo_in_str_fr = coo.transform_to(stream_frame)
+     _points = np.stack((coo_in_str_fr.phi1, coo_in_str_fr.phi2)).T
+
+     return poly.contains_points(_points)
+
+def _get_gala_dynamics():
+    try:
+        import gala.dynamics as gd
+        return gd
+    except Exception as err:
+        raise ImportError(
+            "\n"
+            "galstreams requires a working gala installation.\n\n"
+            "The current gala install is broken (likely GSL / compiled dependency issue).\n\n"
+            "Fix options:\n\n"
+            "  pip install --force-reinstall gala\n"
+            "or (recommended):\n"
+            "  conda install -c conda-forge gala gsl\n"
+        ) from err
+
+def compute_angular_momentum_track(track, return_cartesian = False):
+
+   '''  Compute angular momentum for each point in the track.  
+        By default it returns the spherical components of the angular momentum in the heliocentric and galactocentric reference
+        frames at rest w.r.t. the GSR. Set return_cartesian = True to get cartesian components
+ 
+
+       	Parameters:
+      	=======
+
+	track : SkyCoord object
+      
+        return_cartesian : If True returns cartesian coordinates. If False, returns spherical coords (astropy format mod, lat, lon)
+     
+        Returns:
+	========
+
+        L : list object with compoments of angular momentum vector. By default returns spherical components modulus, lat, lon
+
+   '''
+
+   gd = _get_gala_dynamics() 
+
+   tr = track.cartesian
+
+   pos = ac.CartesianRepresentation(x = tr.x, y = tr.y, z = tr.z)
+   vel = ac.CartesianDifferential(d_x = tr.differentials['s'].d_x, d_y = tr.differentials['s'].d_y, d_z = tr.differentials['s'].d_z)
+   psp = gd.PhaseSpacePosition(pos=pos, vel=vel)
+   L = psp.angular_momentum()
+
+   if return_cartesian: return L
+   else: 
+      L_sph = ac.cartesian_to_spherical(x = L[0], y = L[1], z = L[2])
+      return L_sph
+
+
+#---------MW Streams class--------------------------------------------------------------------------------
+class MWStreams(dict):
+    
+  def __init__(self, verbose=False, implement_Off=False, print_topcat_friendly_files=False):
+
+    #A MWStreams object is a dictionary in which each entry is a Footprint object, indexed by each stream's name.
+    #There's also a mandatory summary entry, which is a Pandas DataFrame with summary attributes for the full library
+
+    #Initialize empty dictionary
+    dict.__init__(self)
+
+    #Read in the master logs
+    tdir = os.path.dirname(os.path.realpath(__file__))
+    #master logs
+    filepath = "{path}/{filen}".format(path=tdir+"/lib/",filen='master_log.txt')
+    lmaster = astropy.table.Table.read(filepath,format='ascii.commented_header').to_pandas()
+    filepath = "{path}/{filen}".format(path=tdir+"/lib/",filen='master_log.discovery_refs.txt')
+    lmaster_discovery = astropy.table.Table.read(filepath,format='ascii.commented_header').to_pandas(index='Name')
+    filepath = "{path}/{filen}".format(path=tdir+"/lib/",filen='master_log.comments.txt')
+    lmaster_comments = astropy.table.Table.read(filepath,format='ascii.commented_header').to_pandas(index='Name')
+
+    lmaster["On"] = lmaster["On"].astype('bool') #this attribute controls whether a given track is included or not
+
+    #SkyCoords objects will be created for each of these dicts after the full library has been created
+    attributes = ['ra','dec','distance','pm_ra_cosdec','pm_dec','radial_velocity']
+    units = [u.deg, u.deg, u.kpc, u.mas/u.yr, u.mas/u.yr, u.km/u.s]
+    end_o_dic = {k: np.array([])*uu  for k,uu in zip(attributes,units) }
+    end_f_dic = {k: np.array([])*uu  for k,uu in zip(attributes,units) }
+    mid_point_dic = {k: np.array([])*uu  for k,uu in zip(attributes,units) }
+    mid_pole_dic  = {k: np.array([])*uu  for k,uu in zip(attributes,units) }
+    info_flags = []
+    #separate info_flags (easier to filter)
+    has_empirical_track = np.array([],dtype=np.int32)
+    has_D = np.array([],dtype=np.int32)
+    has_pm = np.array([],dtype=np.int32)
+    has_vrad = np.array([],dtype=np.int32)
+    discovery_refs = []
+    lengths = np.array([])#*u.deg
+    track_widths = dict(phi2=np.array([]), pm_phi1_cosphi2=np.array([]), pm_phi2=np.array([]))
+
+    print("Initializing galstreams library from master_log... ")
+    nid = 1
+    for ii in np.arange(lmaster.TrackRefs.size):
+
+       #Create the names of the files containing the knots and summary attributes to initialize each stream
+       summary_file = "{tdir}/track.{imp}.{stname}.{tref}.summary.ecsv".format(tdir=tdir+'/tracks', imp=lmaster.Imp[ii], 
+          								      stname=lmaster.Name[ii],
+          								      tref=lmaster.TrackRefs[ii])
+       track_file   = "{tdir}/track.{imp}.{stname}.{tref}.ecsv".format(tdir=tdir+'/tracks', imp=lmaster.Imp[ii], 
+          							      stname=lmaster.Name[ii],
+          							      tref=lmaster.TrackRefs[ii])
+
+       if verbose: 
+          print(f"Initializing Track6D {lmaster.TrackName[ii]} for {lmaster.Name[ii]}...")
+
+       #Do the magic. The track is read and all attributes stored in the summary for all registered stream tracks. 
+       #Only the ones "On" are "realized" unless implement_Off == True
+       track = Track6D(track_name=lmaster.TrackName[ii], stream_name=lmaster.Name[ii], track_reference=lmaster.TrackRefs[ii], 
+                       track_file=track_file, track_discovery_references=lmaster_discovery.loc[lmaster.Name[ii],'DiscoveryRefs'] ,
+                       summary_file=summary_file)
+
+       if implement_Off:
+           self[lmaster.TrackName[ii]] = track
+           self[lmaster.TrackName[ii]].ID = nid
+           nid = nid+1
+       else:
+          if lmaster.On[ii]: 
+              self[lmaster.TrackName[ii]] = track
+              self[lmaster.TrackName[ii]].ID = nid
+              nid = nid+1
+          elif verbose: print(f"Skipping Off track {lmaster.TrackName[ii]}...")
+
+       #Store summary attributes
+       for k in attributes: end_o_dic[k] = np.append(end_o_dic[k], getattr(track.end_points, k)[0] )
+       for k in attributes: end_f_dic[k] = np.append(end_f_dic[k], getattr(track.end_points, k)[1] )
+       for k in attributes: mid_point_dic[k] = np.append(mid_point_dic[k], getattr(track.mid_point, k) )
+       for k in attributes[:2]: mid_pole_dic[k]  = np.append(mid_pole_dic[k] , getattr(track.mid_pole, k) )
+       for k in track_widths.keys(): track_widths[k] = np.append(track_widths[k], track.track_width['width_'+k].value)
+
+
+       info_flags.append(track.InfoFlags)
+       has_empirical_track = np.append(has_empirical_track, np.int32(track.InfoFlags[0]))
+       has_D               = np.append(has_D    , np.int32(track.InfoFlags[1])) 
+       has_pm              = np.append(has_pm   , np.int32(track.InfoFlags[2]))  
+       has_vrad            = np.append(has_vrad , np.int32(track.InfoFlags[3]))  
+       lengths = np.append(lengths, track.length.deg)
+       discovery_refs = np.append(discovery_refs, lmaster_discovery.loc[lmaster.Name[ii],'DiscoveryRefs'] )
+
+
+    #Add skycoord summary attributes to the library and selected cols to the summary table
+    self.end_o = ac.SkyCoord(**end_o_dic)
+    self.end_f = ac.SkyCoord(**end_f_dic)
+    self.mid_point = ac.SkyCoord(**mid_point_dic)
+    self.mid_pole  = ac.SkyCoord(ra=mid_pole_dic["ra"], dec=mid_pole_dic["dec"], frame='icrs')
+
+    #Store master table as an attribute (inherits structure of lmaster dataframe)
+    self.summary = lmaster.copy()
+
+    #Stream Length
+    self.summary["length"] = np.array(lengths)
+    #End points
+    self.summary["ra_o"] = end_o_dic["ra"].deg
+    self.summary["dec_o"] = end_o_dic["dec"].deg
+    self.summary["distance_o"] = end_o_dic["distance"].value
+    self.summary["ra_f"] = end_f_dic["ra"].deg
+    self.summary["dec_f"] = end_f_dic["dec"].deg
+    self.summary["distance_f"] = end_f_dic["distance"].value
+    #Mid point
+    self.summary["ra_mid"] = mid_point_dic["ra"].deg
+    self.summary["dec_mid"] = mid_point_dic["dec"].deg
+    self.summary["distance_mid"] = mid_point_dic["distance"].value
+    #Pole
+    self.summary["ra_pole"] = mid_pole_dic["ra"].deg
+    self.summary["dec_pole"] = mid_pole_dic["dec"].deg
+    #Widths
+    #Track widths in phi2,pm_phi1/phi2
+    for k in track_widths.keys():
+       mask = self.summary["width_"+k] == -1
+       self.summary.loc[mask,"width_"+k] = np.round(track_widths[k][mask],decimals=2) #some streams have widths ~0.05deg
+
+    #Info (InfoFlags and has_* columns is the same, but to have it on separate columns is more practical for filtering)
+    self.summary["InfoFlags"] = np.array(info_flags)
+    self.summary["has_empirical_track"] = has_empirical_track
+    self.summary["has_D"]    = has_D              
+    self.summary["has_pm"]   = has_pm             
+    self.summary["has_vrad"] = has_vrad           
+    self.summary["DiscoveryRefs"] = discovery_refs
+
+    #Index by TrackName
+    self.summary.index=self.summary.TrackName
+
+    #Create a numeric ID for each track
+    self.summary["ID"] = ''
+    for ii in self.summary.index:
+       if self.summary.loc[ii,'On']:
+        self.summary.loc[ii,'ID'] = self[ii].ID
+  
+    #If chosen by the user, when the library is instantiated, save in default location TOPCAT-friendly csv files with 
+    # the library's tracks, end-points, mid-points and summary table 
+    if print_topcat_friendly_files:
+     self.print_topcat_friendly_compilation(output_root=f'{tdir}/tracks/galtreams.unique_streams')
+
+
+  def all_unique_stream_names(self):
+       '''
+         Returns all unique instances of the StreamNames in the library (a stream can have multiple tracks)
+
+         Returns
+         =======
+         
+         array 
+       '''
+       return np.unique(self.summary.Name[self.summary.On])
+
+  def all_track_names(self, On_only=False):
+       '''
+         Returns TrackNames available in the library (when On_only=False, equivalent to MWStreams.summary['TrackName']) 
+  
+         Parameters:
+         ===========
+     
+         On_only: True/False
+                  If True it returns only the names for the active tracks
+
+         Returns
+         =======
+         
+         array  
+       '''
+ 
+       if On_only: return self.keys()  
+       else:
+             return np.array(self.summary.index)       
+
+  def get_track_names_for_stream(self, StreamName, On_only=False):
+    '''
+        Find all the TrackNames for which the StreamName matches the input string (all or part of it)
 
         Parameters
         ==========
